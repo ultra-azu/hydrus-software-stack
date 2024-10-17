@@ -1,0 +1,14 @@
+name: PR Docker Build and Run Test
+run-name: ${{ github.actor }} is testing the building and run of Dockerfile on PR ${{ github.event.number }}
+on: [pull_request]
+
+jobs:
+  CI:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Build Camera Docker
+        run: docker build -t local -f ./docker/amd64/camera.Dockerfile .
