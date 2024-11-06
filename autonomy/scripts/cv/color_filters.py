@@ -27,7 +27,7 @@ def color_filters(tolerance = 10, min_area = 500, min_confidence = 30):
             break
 
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        hsv = cv2.GaussianBlur(hsv, (5, 5), 0)
+        hsv = cv2.GaussianBlur(hsv, (25, 25), 0)
 
         # Masks for color red
         lower_red1 = np.array([0, 100, 100])
