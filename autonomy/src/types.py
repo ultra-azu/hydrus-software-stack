@@ -2,7 +2,7 @@
 from dataclasses import dataclass
 from typing import List
 @dataclass
-class OutputBBox:
+class Detection:
     x1: float
     y1: float
     x2: float
@@ -11,23 +11,21 @@ class OutputBBox:
     conf: float
     depth: float = 0
 
+@dataclass
+class Detections:
+    detections: List[Detection]
+    detector_name: str
 
 @dataclass 
-class point_3d:
+class Point3D:
     x: float
     y: float
     z: float
 
 
-@dataclass
-class mission_data:
-    detections: List[OutputBBox]
-    current_point: point_3d
-    history: list
-
 
 @dataclass
-class rotation_3d:
+class Rotation3D:
     a: float
     b: float
     c: float

@@ -1,11 +1,20 @@
-import rospy
+
+# Python Dependencies
 import cv2
 import numpy as np
-from dataclasses import dataclass
 from typing import List, Dict, Tuple
 from ultralytics import YOLO
-from autonomy.src.types import OutputBBox, rotation_3d, point_3d
-from autonomy.src.cv_algorithms import color_filter, yolo_object_detection
+from autonomy.src.types import OutputBBox, Rotation3D, Point3D  # Assuming this is where your custom types are defined
+
+
+# ROS Dependencies
+import rospy
+from sensor_msgs.msg import Image, CameraInfo, RegionOfInterest
+from geometry_msgs.msg import Point, PoseStamped
+from std_msgs.msg import Header
+from autonomy.msg import Detection, Detections  
+from cv_bridge import CvBridge, CvBridgeError
+
 
 
 def color_filter(image: np.ndarray, tolerance: float = 0.4, min_confidence: float = 0.3, min_area: float = 0.2, rgb_range: Tuple[int, int, int] = (255, 0, 0)) -> List[OutputBBox]:
@@ -94,7 +103,7 @@ def transform_to_global(camera_point: point_3d,imu_point: point_3d, imu_rotation
 
 
 #//////////////////////////////////////////// 
-#////////////// ROS CODE/////////////////////
+#///////// ROS CODE PUBLISHERS///////////////
 # ///////////////////////////////////////////
 
 bridge = CvBridge()
@@ -126,7 +135,7 @@ def imu_pose_callback(msg):
     imu_pose = msg
 
 def create_detector_message(cls_id, confidence, bbox, point):
-    detector_msg = Detector()
+    detector_msg = Detection()
     detector_msg.cls = cls_id
     detector_msg.confidence = confidence
     detector_msg.bounding_box = bbox
@@ -157,6 +166,14 @@ def run_detection_pipelines():
             depth_value = depth_image[center_y, center_x] if depth_image is not None else 0.0
             point = Point(x=center_x, y=center_y, z=depth_value)
 
+            def create_detector_message(cls_id, confidence, bbox, point):
+                detector_msg = Detector()
+                detector_msg.cls = cls_id
+                detector_msg.confidence = confidence
+                detector_msg.bounding_box = bbox
+                detector_msg.point = point
+                return detector_msg
+
             detector_msg = create_detector_message(cls_id, confidence, bbox, point)
             detections_list.append(detector_msg)
 
@@ -165,37 +182,13 @@ def run_detection_pipelines():
 def publish_vision_detections():
     rospy.init_node('computer_vision_detections')
     detection_pub = rospy.Publisher('/detector/box_detection', Detections, queue_size=10)
-    annotated_pub = rospy.Publisher('/annotated_image', Image, queue_size=10)
-
     rate = rospy.Rate(10) 
-    
     while not rospy.is_shutdown():
         detections = run_detection_pipelines()
         detection_msg = Detections()
         detection_msg.detections = detections
         detection_msg.class_names = ["Class1", "Class2", "Class3"]  
-
         detection_pub.publish(detection_msg)
-
-        annotated_image = rgb_image.copy() if rgb_image is not None else None
-        if annotated_image is not None:
-            for det in detections:
-                cv2.rectangle(
-                    annotated_image,
-                    (det.bounding_box.x_offset, det.bounding_box.y_offset),
-                    (det.bounding_box.x_offset + det.bounding_box.width, det.bounding_box.y_offset + det.bounding_box.height),
-                    (0, 255, 0), 2
-                )
-                label = f"Class {det.cls}: {det.confidence:.2f}"
-                cv2.putText(annotated_image, label,
-                            (det.bounding_box.x_offset, det.bounding_box.y_offset - 10),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-            try:
-                annotated_image_msg = bridge.cv2_to_imgmsg(annotated_image, "bgr8")
-                annotated_pub.publish(annotated_image_msg)
-            except CvBridgeError as e:
-                rospy.logerr("CvBridge Error: {0}".format(e))
 
         rate.sleep()
 
