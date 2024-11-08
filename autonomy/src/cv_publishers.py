@@ -1,11 +1,13 @@
 
 # Python Dependencies
+
+# Python Dependencies
 import cv2
 import numpy as np
 from typing import List, Dict, Tuple
 from ultralytics import YOLO
-import autonomy.src.types  as types
-from dataclasses import dataclass
+from autonomy.src.types import OutputBBox, Rotation3D, Point3D  # Assuming this is where your custom types are defined
+
 
 # ROS Dependencies
 import rospy
@@ -16,16 +18,6 @@ from autonomy.msg import Detection, Detections
 from cv_bridge import CvBridge, CvBridgeError
 
 
-@dataclass
-class ColorFilterConfig:
-    tolerance: float
-    min_confidence: float
-    min_area: float
-    rgb_range: Tuple[int,int,int]
-
-#//////////////////////////////////////////// 
-#//////////DETECTION FUNCTIONS///////////////
-#////////////////////////////////////////////
 
 def color_filter(image: np.ndarray, config: ColorFilterConfig = ColorFilterConfig(
                      tolerance=0.4, min_confidence=0.3, min_area=0.2, rgb_range= (255,0,0)
@@ -154,6 +146,7 @@ def transform_to_global(detections: List[types.Detection],imu_point: types.Point
 
 #//////////////////////////////////////////// 
 #///////// ROS CODE PUBLISHERS///////////////
+#///////// ROS CODE PUBLISHERS///////////////
 # ///////////////////////////////////////////
 
 bridge = CvBridge()
@@ -194,23 +187,13 @@ def imu_pose_callback(msg):
 
 
 
-def create_detector_message(detected_object: List[types.Detection])-> List[Detection]:
-    detections_conversiton: List[Detection] = []
-    for detection in detected_object:
-        detector_msg = Detection()
-        bbox = RegionOfInterest(
-        x_offset=detection.x1,
-        y_offset=detection.y1,
-        height=detection.y2 - detection.y1,
-        width=detection.x2 - detection.x1)
-        point = Point(x=detection.point.x ,y=detection.point.y, z=detection.point.z)
-
-        detector_msg.cls = detected_object.cls
-        detector_msg.confidence = detected_object.conf
-        detector_msg.point = point
-        detector_msg.bounding_box = bbox
-        detections_conversiton.append(detector_msg)
-    return detections_conversiton
+def create_detector_message(cls_id, confidence, bbox, point):
+    detector_msg = Detection()
+    detector_msg.cls = cls_id
+    detector_msg.confidence = confidence
+    detector_msg.bounding_box = bbox
+    detector_msg.point = point
+    return detector_msg
 
 
 
@@ -218,16 +201,33 @@ def run_detection_pipelines()->List[Tuple[str,List[Detection]]]:
     global rgb_image, depth_image, camera_intrinsics,imu_point, imu_rotation, color_filter_config
     detectors_output = []
     pipelines = [color_filter, yolo_object_detection]
-    detectors_names = ['color_detector', 'yolo_detector']
-    for name in range(detectors_names):
-        if name == 'color_detector':
-            detection_results = pipelines[i](rgb_image, color_filter_config)  
-        else:
-            detection_results = pipelines[i](rgb_image, color_filter_config)  
-        calculate_point_3d(detections=detection_results, depth_image=depth_image, camera_intrinsic= camera_intrinsics)
-        transform_to_global(detections=detection_results, imu_point=imu_point,imu_rotation=imu_rotation)
-        detector_msg_list = create_detector_message(create_detector_message(detection_results))
-        detectors_output.append((detectors_names[i], detector_msg_list))
+    for pipeline in pipelines:
+        detection_results = pipeline(rgb_image)  
+        for detection in detection_results:
+            cls_id = detection['cls'] 
+            confidence = detection['confidence']
+            bbox = RegionOfInterest(
+                x_offset=detection['bbox'][0],
+                y_offset=detection['bbox'][1],
+                height=detection['bbox'][2],
+                width=detection['bbox'][3]
+            )
+
+            center_x = detection['bbox'][0] + detection['bbox'][2] // 2
+            center_y = detection['bbox'][1] + detection['bbox'][3] // 2
+            depth_value = depth_image[center_y, center_x] if depth_image is not None else 0.0
+            point = Point(x=center_x, y=center_y, z=depth_value)
+
+            def create_detector_message(cls_id, confidence, bbox, point):
+                detector_msg = Detector()
+                detector_msg.cls = cls_id
+                detector_msg.confidence = confidence
+                detector_msg.bounding_box = bbox
+                detector_msg.point = point
+                return detector_msg
+
+            detector_msg = create_detector_message(cls_id, confidence, bbox, point)
+            detections_list.append(detector_msg)
 
     return detectors_output
 
@@ -236,12 +236,11 @@ def publish_vision_detections():
     detection_pub = rospy.Publisher('/detector/box_detection', Detections, queue_size=10)
     rate = rospy.Rate(10) 
     while not rospy.is_shutdown():
-        pipelines_results = run_detection_pipelines()
-        for detector_name, detections in pipelines_results:
-            detection_msg = Detections()
-            detection_msg.detections = detections
-            detection_msg.detector_name = detector_name  
-            detection_pub.publish(detection_msg)
+        detections = run_detection_pipelines()
+        detection_msg = Detections()
+        detection_msg.detections = detections
+        detection_msg.class_names = ["Class1", "Class2", "Class3"]  
+        detection_pub.publish(detection_msg)
 
         rate.sleep()
 

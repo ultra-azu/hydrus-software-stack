@@ -1,5 +1,7 @@
 # Goal
-geometry_msgs/Point target_point
+float64 x          # Target X position
+float64 y          # Target Y position
+float64 z          # Target Z position
 
 ---
 # Feedback
