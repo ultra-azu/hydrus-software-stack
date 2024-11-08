@@ -12,7 +12,7 @@ from typing import List, Optional, Callable
 
 from autonomy.src.types import point_3d, OutputBBox
 from autonomy.src.controllers import SubController
-from controller.msg import NavigateToWaypointAction, NavigateToWaypointGoal, NavigateToWaypointFeedback, NavigateToWaypointResult
+from autonomy.msg import NavigateToWaypointAction, NavigateToWaypointGoal, NavigateToWaypointFeedback, NavigateToWaypointResult
 
 @dataclass
 class MissionData:
@@ -112,7 +112,6 @@ class PreQualificationMission:
 def main():
     rospy.init_node('prequalification_mission_node')
     mission = PreQualificationMission()
-
     rate = rospy.Rate(1) 
     while not rospy.is_shutdown():
         mission.run()
