@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 from typing import List, Dict, Tuple
 from ultralytics import YOLO
-from autonomy.src.types import OutputBBox, Rotation3D, Point3D  # Assuming this is where your custom types are defined
+import autonomy.src.types  as types
 
 
 # ROS Dependencies
@@ -17,7 +17,12 @@ from cv_bridge import CvBridge, CvBridgeError
 
 
 
-def color_filter(image: np.ndarray, tolerance: float = 0.4, min_confidence: float = 0.3, min_area: float = 0.2, rgb_range: Tuple[int, int, int] = (255, 0, 0)) -> List[OutputBBox]:
+
+#//////////////////////////////////////////// 
+#//////////DETECTION FUNCTIONS///////////////
+#////////////////////////////////////////////
+
+def color_filter(image: np.ndarray, tolerance: float = 0.4, min_confidence: float = 0.3, min_area: float = 0.2, rgb_range: Tuple[int, int, int] = (255, 0, 0)) -> List[types.Detection]:
     assert min_confidence < 1.0 and min_confidence > 0, "Min confidence must be between 0 and 1"
 
     result = []
@@ -50,12 +55,12 @@ def color_filter(image: np.ndarray, tolerance: float = 0.4, min_confidence: floa
             if total_pixels_in_contour > 0:
                 confidence = red_pixel_count / total_pixels_in_contour
                 if confidence > min_confidence:
-                    result.append(OutputBBox(x, y, x + w, y + h, 'null', confidence))
+                    result.append(types.Detection(x, y, x + w, y + h, 0, confidence))
 
     return result
 
 
-def yolo_object_detection(image: np.ndarray)-> List[OutputBBox]:
+def yolo_object_detection(image: np.ndarray)-> List[types.Detection]:
     result_list = []
     model = YOLO("yolo11n.pt")  
     results = model(image) 
@@ -63,42 +68,80 @@ def yolo_object_detection(image: np.ndarray)-> List[OutputBBox]:
         x1, y1, x2, y2 = box.xyxy.cpu().numpy()[0]
         conf = box.conf
         cls = box.cls
-        result_list.append(OutputBBox(x1,y1,x2,y2,str(cls), conf))
+        result_list.append(types.Detection(x1,y1,x2,y2,str(cls), conf))
 
     return  result_list
 
-# In place modifification of the OutputBBox to add the depth.
-def calculate_distance(image:np.ndarray, bbox: List[OutputBBox], object_heights:Dict[str: float], focal_length:float = 0):
+
+
+
+
+
+#//////////////////////////////////////////// 
+#/// IN PLACE MODIFICATION OF DETECTION//////
+# ///////////////////////////////////////////
+
+def calculate_distance(image:np.ndarray, bbox: List[types.Detection], object_heights:Dict[str: float], focal_length:float = 0):
     for box in bbox:    
         for key in object_heights.keys():
             distance_feet = (object_heights[key] * focal_length) / (box.y2 - box.y1)
             distance_feet = round(distance_feet, 2)  
             box.depth = distance_feet
 
-    
-#AI-GENERATED
-def quaternion_to_matrix(rotation: rotation_3d):
-    w, x, y, z = rotation.a, rotation.b, rotation.c, rotation.d
-    # Define the rotation matrix from quaternion
-    rotation_matrix = np.array([
-        [1 - 2*y**2 - 2*z**2,     2*x*y - 2*z*w,     2*x*z + 2*y*w],
-        [    2*x*y + 2*z*w, 1 - 2*x**2 - 2*z**2,     2*y*z - 2*x*w],
-        [    2*x*z - 2*y*w,     2*y*z + 2*x*w, 1 - 2*x**2 - 2*y**2]
-    ])
-    # Create a 4x4 transformation matrix
-    transform_matrix = np.eye(4)
-    transform_matrix[:3, :3] = rotation_matrix
-    return transform_matrix
 
-def transform_to_global(camera_point: point_3d,imu_point: point_3d, imu_rotation:rotation_3d)-> point_3d:
+def calculate_point_3d(detections: List[types.Detection], depth_image: np.ndarray, camera_intrinsic: tuple):
+    # Calculate the average depth within the bounding box
+    for detection in detections:
+        x_min, y_min, x_max, y_max = detection.x1, detection.y1, detection.x2, detection.y2
+        if depth_image is not None:
+            x_min_int = int(x_min)
+            x_max_int = int(x_max)
+            y_min_int = int(y_min)
+            y_max_int = int(y_max)
+
+            bbox_depth = depth_image[y_min_int:y_max_int, x_min_int:x_max_int]
+            if bbox_depth.size > 0:
+                mean_depth = np.nanmean(bbox_depth)
+                if not np.isnan(mean_depth):
+                    # Convert depth to 3D point using camera intrinsic parameters
+                    fx = camera_intrinsic[0]
+                    fy = camera_intrinsic[1]
+                    cx = camera_intrinsic[2]
+                    cy = camera_intrinsic[3]
+
+                    z = mean_depth
+                    x_center = (x_min + x_max) / 2
+                    y_center = (y_min + y_max) / 2
+                    x = (x_center - cx) * z / fx
+                    y = (y_center - cy) * z / fy
+
+                    point_camera = Point(x=x, y=y, z=z)
+
+def transform_to_global(camera_point: types.Point3D,imu_point: types.Point3D, imu_rotation:types.Point3D)-> types.Point3D:
     translation = [imu_point.x, imu_point.y, imu_point.z]
     rotation = [imu_rotation.a, imu_rotation.b,imu_rotation.c, imu_rotation.d]
+
+    def quaternion_to_matrix(rotation: types.Rotation3D):
+        w, x, y, z = rotation.a, rotation.b, rotation.c, rotation.d
+        # Define the rotation matrix from quaternion
+        rotation_matrix = np.array([
+            [1 - 2*y**2 - 2*z**2,     2*x*y - 2*z*w,     2*x*z + 2*y*w],
+            [    2*x*y + 2*z*w, 1 - 2*x**2 - 2*z**2,     2*y*z - 2*x*w],
+            [    2*x*z - 2*y*w,     2*y*z + 2*x*w, 1 - 2*x**2 - 2*y**2]
+        ])
+        # Create a 4x4 transformation matrix
+        transform_matrix = np.eye(4)
+        transform_matrix[:3, :3] = rotation_matrix
+        return transform_matrix
+    
     transform_matrix = quaternion_to_matrix(rotation)
     transform_matrix[0:3, 3] = translation
 
     point_homogeneous = np.array([camera_point.x, camera_point.y, camera_point.z, 1.0])
     point_global = np.dot(transform_matrix, point_homogeneous)
-    return point_3d(point_global[0, point_global[1], point_global[2]])
+    return types.Point3D(point_global[0, point_global[1], point_global[2]])
+
+
 
 
 
@@ -134,61 +177,56 @@ def imu_pose_callback(msg):
     global imu_pose
     imu_pose = msg
 
-def create_detector_message(cls_id, confidence, bbox, point):
-    detector_msg = Detection()
-    detector_msg.cls = cls_id
-    detector_msg.confidence = confidence
-    detector_msg.bounding_box = bbox
-    detector_msg.point = point
-    return detector_msg
 
-def run_detection_pipelines():
-    if rgb_image is None or depth_image is None:
-        return []
 
-    detections_list = []
-
+def run_detection_pipelines()->List[Tuple[str,List[Detection]]]:
+    global rgb_image, depth_image, camera_info,imu_pose
+    detectors_output = []
     pipelines = [color_filter, yolo_object_detection]
-    for pipeline in pipelines:
-        detection_results = pipeline(rgb_image)  
+    detectors_names = ['color_detector', 'yolo_detector']
+    for i in range(pipelines):
+        detections_list = []
+        detection_results = pipelines[i](rgb_image)  
         for detection in detection_results:
-            cls_id = detection['cls'] 
-            confidence = detection['confidence']
-            bbox = RegionOfInterest(
-                x_offset=detection['bbox'][0],
-                y_offset=detection['bbox'][1],
-                height=detection['bbox'][2],
-                width=detection['bbox'][3]
-            )
+            fx = camera_info.K[0] 
+            fy = camera_info.K[4] 
+            cx = camera_info.K[2] 
+            cy = camera_info.K[5] 
+            camera_intrinsics = (fx,fy,cx,cy)
+            calculate_point_3d(detections=detection, depth_image=depth_image, camera_intrinsic= camera_intrinsics)
+            # transform_to_global()
+            def create_detector_message(detected_object: types.Detection)-> Detection:
+                detector_msg = Detection()
+                bbox = RegionOfInterest(
+                x_offset=detected_object.x1,
+                y_offset=detected_object.y1,
+                height=detected_object.y2 - detected_object.y1,
+                width=detected_object.x2 - detected_object.x1)
+                point = Point(x=detected_object.point.x ,y=detected_object.point.y, z=detected_object.point.z)
 
-            center_x = detection['bbox'][0] + detection['bbox'][2] // 2
-            center_y = detection['bbox'][1] + detection['bbox'][3] // 2
-            depth_value = depth_image[center_y, center_x] if depth_image is not None else 0.0
-            point = Point(x=center_x, y=center_y, z=depth_value)
-
-            def create_detector_message(cls_id, confidence, bbox, point):
-                detector_msg = Detector()
-                detector_msg.cls = cls_id
-                detector_msg.confidence = confidence
-                detector_msg.bounding_box = bbox
+                detector_msg.cls = detected_object.cls
+                detector_msg.confidence = detected_object.conf
                 detector_msg.point = point
+                detector_msg.bounding_box = bbox
                 return detector_msg
 
-            detector_msg = create_detector_message(cls_id, confidence, bbox, point)
+            detector_msg = create_detector_message(create_detector_message(detection))
             detections_list.append(detector_msg)
+        detectors_output.append((detectors_names[i], detections_list))
 
-    return detections_list
+    return detectors_output
 
 def publish_vision_detections():
     rospy.init_node('computer_vision_detections')
     detection_pub = rospy.Publisher('/detector/box_detection', Detections, queue_size=10)
     rate = rospy.Rate(10) 
     while not rospy.is_shutdown():
-        detections = run_detection_pipelines()
-        detection_msg = Detections()
-        detection_msg.detections = detections
-        detection_msg.class_names = ["Class1", "Class2", "Class3"]  
-        detection_pub.publish(detection_msg)
+        detector_outputs = run_detection_pipelines()
+        for detector_name, detections in detector_outputs:
+            detection_msg = Detections()
+            detection_msg.detections = detections
+            detection_msg.detector_name = detector_name  
+            detection_pub.publish(detection_msg)
 
         rate.sleep()
 

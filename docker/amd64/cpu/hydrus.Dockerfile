@@ -26,15 +26,6 @@ RUN apt-get update && apt-get install -y \
     libbullet-dev \
     python3-empy
 
-# Mission Node Dependencies
-RUN apt-get install -y \
-    ros-noetic-smach-ros \
-    ros-noetic-executive-smach \
-    ros-noetic-smach-viewer\
-    ros-noetic-tf2-geometry-msgs\
-    libeigen3-dev\
-    python3-tf2-kdl
-
 # Embedded Node Dependencies
 RUN apt-get install -y --no-install-recommends \
        gcc \

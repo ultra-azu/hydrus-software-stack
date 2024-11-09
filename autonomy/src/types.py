@@ -1,20 +1,7 @@
 
 from dataclasses import dataclass
-from typing import List
-@dataclass
-class Detection:
-    x1: float
-    y1: float
-    x2: float
-    y2: float
-    cls: str
-    conf: float
-    depth: float = 0
+from typing import List, Optional
 
-@dataclass
-class Detections:
-    detections: List[Detection]
-    detector_name: str
 
 @dataclass 
 class Point3D:
@@ -23,10 +10,26 @@ class Point3D:
     z: float
 
 
-
 @dataclass
 class Rotation3D:
     a: float
     b: float
     c: float
     d:float
+
+
+@dataclass
+class Detection:
+    x1: float
+    y1: float
+    x2: float
+    y2: float
+    cls: int
+    conf: float
+    depth: float = 0
+    point: Optional[Point3D]
+
+@dataclass
+class Detections:
+    detections: List[Detection]
+    detector_name: str

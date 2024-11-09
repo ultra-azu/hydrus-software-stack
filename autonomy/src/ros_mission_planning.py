@@ -1,29 +1,25 @@
-#!/usr/bin/env python3
-
-import rospy
 import math
-import actionlib
-from sensor_msgs.msg import Image
-from cv_bridge import CvBridge, CvBridgeError
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional, Callable
 
-from autonomy.src.types import point_3d, OutputBBox
-from autonomy.src.controllers import SubController
+
+
+
+# ROS Dependencies
+import rospy
+import actionlib
+from geometry_msgs.msg import Point, PoseStamped
+from autonomy.msg import Detection, Detections  
 from autonomy.msg import NavigateToWaypointAction, NavigateToWaypointGoal, NavigateToWaypointFeedback, NavigateToWaypointResult
 
-@dataclass
-class MissionData:
-    detections: List[OutputBBox]
-    current_point: point_3d
-    check_points: List[point_3d]
+
 
 @dataclass
 class MissionObject:
     name: str
-    position: point_3d
+    position: int
 
 class TaskType(Enum):
     MOVETOCENTER = 1
@@ -43,11 +39,14 @@ class MissionInstructions:
 
 class PreQualificationMission:
     def __init__(self):
-        self.checkpoints = []
+        self.cls_names = {1: 'Gate', 2: 'Bouy'}
         self.detected_objects = []
+        self.current_position = None
         self.instructions = deque()
         self.current_instruction: Optional[MissionInstructions] = None
         self.client = actionlib.SimpleActionClient('navigate_to_waypoint', NavigateToWaypointAction)
+        self.imu_sub = rospy.Subscriber("/zed2i/zed_node/pose", PoseStamped, imu_pose_callback)
+        self.detections = rospy.Subscriber("/detector/box_detection", Detections, imu_pose_callback)
         
         rospy.loginfo("Waiting for action server to start...")
         self.client.wait_for_server()
