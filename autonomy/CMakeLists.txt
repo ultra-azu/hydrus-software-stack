@@ -1,12 +1,11 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(mission)
+project(autnomy)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
 
 find_package(catkin REQUIRED COMPONENTS
   tf2_ros
-  tf2_geometry_msgs
   nav_msgs
   sensor_msgs
   stereo_msgs

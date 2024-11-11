@@ -3,12 +3,12 @@
     <arg name="imu_topic" default="/imu_pose" />
 
     <node pkg="autonomy" type="cv_publishers" name="vision" output="screen">
-        <remap from="/original_topic" to="$(arg imu_topic)" />
+        <!-- <remap from="/original_topic" to="$(arg imu_topic)" /> -->
     </node>
     <node pkg="autonomy" type="controllers" name="controller" output="screen">
-        <remap from="/original_topic" to="$(arg imu_topic)" />
+        <!-- <remap from="/original_topic" to="$(arg imu_topic)" /> -->
     </node>
     <node pkg="autonomy" type="ros_mission_planning" name="mission_planning" output="screen">
-        <remap from="/original_topic" to="$(arg imu_topic)" />
+        <!-- <remap from="/original_topic" to="$(arg imu_topic)" /> -->
     </node>
 </launch>

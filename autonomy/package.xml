@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="2">
-    <name>mission</name>
+    <name>autonomy</name>
     <version>0.1.0</version>
     <description>This is a combined package that includes dependencies for zed_nodelets, smach_tutorials, and nav_sensors.</description>
 
@@ -11,7 +11,6 @@
 
     <!-- Combined dependencies -->
     <depend>tf2_ros</depend>
-    <depend>tf2_geometry_msgs</depend>
     <depend>nav_msgs</depend>
     <depend>sensor_msgs</depend>
     <depend>stereo_msgs</depend>
@@ -30,6 +29,4 @@
     <depend>std_msgs</depend>
     <depend>topic_tools</depend>
 
-    <exec_depend>computer_vision</exec_depend>
-    <build_depend>computer_vision</build_depend>
 </package>

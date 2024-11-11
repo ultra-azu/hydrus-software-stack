@@ -5,7 +5,7 @@ import numpy as np
 from typing import List, Dict, Tuple
 from ultralytics import YOLO
 import autonomy.src.types  as types
-
+from dataclasses import dataclass
 
 # ROS Dependencies
 import rospy
@@ -16,23 +16,30 @@ from autonomy.msg import Detection, Detections
 from cv_bridge import CvBridge, CvBridgeError
 
 
-
+@dataclass
+class ColorFilterConfig:
+    tolerance: float
+    min_confidence: float
+    min_area: float
+    rgb_range: Tuple[int,int,int]
 
 #//////////////////////////////////////////// 
 #//////////DETECTION FUNCTIONS///////////////
 #////////////////////////////////////////////
 
-def color_filter(image: np.ndarray, tolerance: float = 0.4, min_confidence: float = 0.3, min_area: float = 0.2, rgb_range: Tuple[int, int, int] = (255, 0, 0)) -> List[types.Detection]:
-    assert min_confidence < 1.0 and min_confidence > 0, "Min confidence must be between 0 and 1"
+def color_filter(image: np.ndarray, config: ColorFilterConfig = ColorFilterConfig(
+                     tolerance=0.4, min_confidence=0.3, min_area=0.2, rgb_range= (255,0,0)
+                 )) -> List[types.Detection]:
+    assert config.min_confidence < 1.0 and config.min_confidence > 0, "Min confidence must be between 0 and 1"
 
     result = []
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     hsv = cv2.GaussianBlur(hsv, (5, 5), 0)
 
     # Convert the RGB color to HSV for filtering
-    target_hsv = cv2.cvtColor(np.uint8([[rgb_range]]), cv2.COLOR_RGB2HSV)[0][0]
-    lower_bound = np.array([max(0, target_hsv[0] - tolerance * 180), 100, 100], dtype=np.uint8)
-    upper_bound = np.array([min(180, target_hsv[0] + tolerance * 180), 255, 255], dtype=np.uint8)
+    target_hsv = cv2.cvtColor(np.uint8([[config.rgb_range]]), cv2.COLOR_RGB2HSV)[0][0]
+    lower_bound = np.array([max(0, target_hsv[0] - config.tolerance * 180), 100, 100], dtype=np.uint8)
+    upper_bound = np.array([min(180, target_hsv[0] + config.tolerance * 180), 255, 255], dtype=np.uint8)
 
     mask = cv2.inRange(hsv, lower_bound, upper_bound)
     kernel = np.ones((5, 5), np.uint8)
@@ -42,7 +49,7 @@ def color_filter(image: np.ndarray, tolerance: float = 0.4, min_confidence: floa
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
     for contour in contours:
         area = cv2.contourArea(contour)
-        if area > min_area:
+        if area > config.min_area:
             x, y, w, h = cv2.boundingRect(contour)
             contour_mask = np.zeros(mask.shape, np.uint8)
             cv2.drawContours(contour_mask, [contour], -1, 255, thickness=cv2.FILLED)
@@ -54,7 +61,7 @@ def color_filter(image: np.ndarray, tolerance: float = 0.4, min_confidence: floa
 
             if total_pixels_in_contour > 0:
                 confidence = red_pixel_count / total_pixels_in_contour
-                if confidence > min_confidence:
+                if confidence > config.min_confidence:
                     result.append(types.Detection(x, y, x + w, y + h, 0, confidence))
 
     return result
@@ -156,6 +163,7 @@ imu_point: types.Point3D = None
 imu_rotation: types.Rotation3D = None
 camera_intrinsics: tuple = None
 camera_info = None
+color_filter_config: ColorFilterConfig = ColorFilterConfig(tolerance=0.4, min_confidence=0.3, min_area=0.2, rgb_range= (255,0,0))
 
 def depth_image_callback(msg):
     global depth_image
@@ -186,33 +194,38 @@ def imu_pose_callback(msg):
 
 
 
+def create_detector_message(detected_object: List[types.Detection])-> List[Detection]:
+    detections_conversiton: List[Detection] = []
+    for detection in detected_object:
+        detector_msg = Detection()
+        bbox = RegionOfInterest(
+        x_offset=detection.x1,
+        y_offset=detection.y1,
+        height=detection.y2 - detection.y1,
+        width=detection.x2 - detection.x1)
+        point = Point(x=detection.point.x ,y=detection.point.y, z=detection.point.z)
+
+        detector_msg.cls = detected_object.cls
+        detector_msg.confidence = detected_object.conf
+        detector_msg.point = point
+        detector_msg.bounding_box = bbox
+        detections_conversiton.append(detector_msg)
+    return detections_conversiton
+
+
+
 def run_detection_pipelines()->List[Tuple[str,List[Detection]]]:
-    global rgb_image, depth_image, camera_intrinsics,imu_point, imu_rotation
+    global rgb_image, depth_image, camera_intrinsics,imu_point, imu_rotation, color_filter_config
     detectors_output = []
     pipelines = [color_filter, yolo_object_detection]
     detectors_names = ['color_detector', 'yolo_detector']
-    for i in range(pipelines):
-        detection_results = pipelines[i](rgb_image)  
+    for name in range(detectors_names):
+        if name == 'color_detector':
+            detection_results = pipelines[i](rgb_image, color_filter_config)  
+        else:
+            detection_results = pipelines[i](rgb_image, color_filter_config)  
         calculate_point_3d(detections=detection_results, depth_image=depth_image, camera_intrinsic= camera_intrinsics)
         transform_to_global(detections=detection_results, imu_point=imu_point,imu_rotation=imu_rotation)
-        def create_detector_message(detected_object: List[types.Detection])-> List[Detection]:
-            detections_conversiton: List[Detection] = []
-            for detection in detected_object:
-                detector_msg = Detection()
-                bbox = RegionOfInterest(
-                x_offset=detection.x1,
-                y_offset=detection.y1,
-                height=detection.y2 - detection.y1,
-                width=detection.x2 - detection.x1)
-                point = Point(x=detection.point.x ,y=detection.point.y, z=detection.point.z)
-
-                detector_msg.cls = detected_object.cls
-                detector_msg.confidence = detected_object.conf
-                detector_msg.point = point
-                detector_msg.bounding_box = bbox
-                detections_conversiton.append(detector_msg)
-            return detections_conversiton
-
         detector_msg_list = create_detector_message(create_detector_message(detection_results))
         detectors_output.append((detectors_names[i], detector_msg_list))
 
@@ -231,6 +244,24 @@ def publish_vision_detections():
             detection_pub.publish(detection_msg)
 
         rate.sleep()
+
+
+
+def handle_set_color_filter(req):
+    global color_filter_config
+    color_filter_config = ColorFilterConfig(
+        tolerance=req.tolerance,
+        min_confidence=req.min_confidence,
+        min_area=req.min_area,
+        rgb_range=tuple(req.rgb_range)
+    )
+    return SetColorFilterResponse(success=True, message="Color filter config updated.")
+
+
+
+
+
+
 
 def initialize_subscribers():
     rospy.loginfo("Initializing subscribers...")
