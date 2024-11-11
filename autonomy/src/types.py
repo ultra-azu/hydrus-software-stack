@@ -12,10 +12,10 @@ class Point3D:
 
 @dataclass
 class Rotation3D:
-    a: float
-    b: float
-    c: float
-    d:float
+    x: float
+    y: float
+    z: float
+    w:float
 
 
 @dataclass

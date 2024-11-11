@@ -116,8 +116,9 @@ def calculate_point_3d(detections: List[types.Detection], depth_image: np.ndarra
                     y = (y_center - cy) * z / fy
 
                     point_camera = Point(x=x, y=y, z=z)
+                    
 
-def transform_to_global(camera_point: types.Point3D,imu_point: types.Point3D, imu_rotation:types.Point3D)-> types.Point3D:
+def transform_to_global(detections: List[types.Detection],imu_point: types.Point3D, imu_rotation:types.Point3D):
     translation = [imu_point.x, imu_point.y, imu_point.z]
     rotation = [imu_rotation.a, imu_rotation.b,imu_rotation.c, imu_rotation.d]
 
@@ -133,15 +134,14 @@ def transform_to_global(camera_point: types.Point3D,imu_point: types.Point3D, im
         transform_matrix = np.eye(4)
         transform_matrix[:3, :3] = rotation_matrix
         return transform_matrix
-    
+
     transform_matrix = quaternion_to_matrix(rotation)
     transform_matrix[0:3, 3] = translation
-
-    point_homogeneous = np.array([camera_point.x, camera_point.y, camera_point.z, 1.0])
-    point_global = np.dot(transform_matrix, point_homogeneous)
-    return types.Point3D(point_global[0, point_global[1], point_global[2]])
-
-
+    
+    for detection in detections:    
+        point_homogeneous = np.array([detection.point.x, detection.point.y, detection.point.z, 1.0])
+        point_global = np.dot(transform_matrix, point_homogeneous)
+        detection.point = types.Point3D(point_global[0], point_global[1], point_global[2])
 
 
 
@@ -150,10 +150,12 @@ def transform_to_global(camera_point: types.Point3D,imu_point: types.Point3D, im
 # ///////////////////////////////////////////
 
 bridge = CvBridge()
-rgb_image = None
-depth_image = None
+rgb_image: np.ndarray = None
+depth_image: np.ndarray = None
+imu_point: types.Point3D = None
+imu_rotation: types.Rotation3D = None
+camera_intrinsics: tuple = None
 camera_info = None
-imu_pose = None
 
 def depth_image_callback(msg):
     global depth_image
@@ -170,49 +172,49 @@ def rgb_image_callback(msg):
         rospy.logerr("CvBridge Error: {0}".format(e))
 
 def camera_info_callback(msg):
-    global camera_info
-    camera_info = msg
+    global camera_intrinsics
+    fx = msg.K[0] 
+    fy = msg.K[4] 
+    cx = msg.K[2] 
+    cy = msg.K[5] 
+    camera_intrinsics = (fx,fy,cx,cy)
 
 def imu_pose_callback(msg):
-    global imu_pose
-    imu_pose = msg
+    global imu_point, imu_rotation
+    imu_point = types.Point3D(x=msg.position.x, y=msg.position.y, z=msg.position.z)
+    imu_rotation = types.Rotation3D(x = msg.orientation.x, y = msg.orientation.y, z=msg.orientation.z, w=msg.orientation.w)
 
 
 
 def run_detection_pipelines()->List[Tuple[str,List[Detection]]]:
-    global rgb_image, depth_image, camera_info,imu_pose
+    global rgb_image, depth_image, camera_intrinsics,imu_point, imu_rotation
     detectors_output = []
     pipelines = [color_filter, yolo_object_detection]
     detectors_names = ['color_detector', 'yolo_detector']
     for i in range(pipelines):
-        detections_list = []
         detection_results = pipelines[i](rgb_image)  
-        for detection in detection_results:
-            fx = camera_info.K[0] 
-            fy = camera_info.K[4] 
-            cx = camera_info.K[2] 
-            cy = camera_info.K[5] 
-            camera_intrinsics = (fx,fy,cx,cy)
-            calculate_point_3d(detections=detection, depth_image=depth_image, camera_intrinsic= camera_intrinsics)
-            # transform_to_global()
-            def create_detector_message(detected_object: types.Detection)-> Detection:
+        calculate_point_3d(detections=detection_results, depth_image=depth_image, camera_intrinsic= camera_intrinsics)
+        transform_to_global(detections=detection_results, imu_point=imu_point,imu_rotation=imu_rotation)
+        def create_detector_message(detected_object: List[types.Detection])-> List[Detection]:
+            detections_conversiton: List[Detection] = []
+            for detection in detected_object:
                 detector_msg = Detection()
                 bbox = RegionOfInterest(
-                x_offset=detected_object.x1,
-                y_offset=detected_object.y1,
-                height=detected_object.y2 - detected_object.y1,
-                width=detected_object.x2 - detected_object.x1)
-                point = Point(x=detected_object.point.x ,y=detected_object.point.y, z=detected_object.point.z)
+                x_offset=detection.x1,
+                y_offset=detection.y1,
+                height=detection.y2 - detection.y1,
+                width=detection.x2 - detection.x1)
+                point = Point(x=detection.point.x ,y=detection.point.y, z=detection.point.z)
 
                 detector_msg.cls = detected_object.cls
                 detector_msg.confidence = detected_object.conf
                 detector_msg.point = point
                 detector_msg.bounding_box = bbox
-                return detector_msg
+                detections_conversiton.append(detector_msg)
+            return detections_conversiton
 
-            detector_msg = create_detector_message(create_detector_message(detection))
-            detections_list.append(detector_msg)
-        detectors_output.append((detectors_names[i], detections_list))
+        detector_msg_list = create_detector_message(create_detector_message(detection_results))
+        detectors_output.append((detectors_names[i], detector_msg_list))
 
     return detectors_output
 
@@ -221,8 +223,8 @@ def publish_vision_detections():
     detection_pub = rospy.Publisher('/detector/box_detection', Detections, queue_size=10)
     rate = rospy.Rate(10) 
     while not rospy.is_shutdown():
-        detector_outputs = run_detection_pipelines()
-        for detector_name, detections in detector_outputs:
+        pipelines_results = run_detection_pipelines()
+        for detector_name, detections in pipelines_results:
             detection_msg = Detections()
             detection_msg.detections = detections
             detection_msg.detector_name = detector_name  
