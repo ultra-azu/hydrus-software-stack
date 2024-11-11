@@ -2,10 +2,7 @@ import math
 from collections import deque
 from dataclasses import dataclass
 from enum import Enum
-from typing import List, Optional, Callable
-
-
-
+from typing import List, Optional, Callable, Set
 
 # ROS Dependencies
 import rospy
@@ -14,12 +11,11 @@ from geometry_msgs.msg import Point, PoseStamped
 from autonomy.msg import Detection, Detections  
 from autonomy.msg import NavigateToWaypointAction, NavigateToWaypointGoal, NavigateToWaypointFeedback, NavigateToWaypointResult
 
-
-
 @dataclass
 class MissionObject:
-    name: str
-    position: int
+    position:Point
+    object_name: str
+    distance: float
 
 class TaskType(Enum):
     MOVETOCENTER = 1
@@ -33,47 +29,76 @@ class Status(Enum):
 @dataclass
 class MissionInstructions:
     task: TaskType
-    object_name: str
+    object_cls: str
     conditions: Callable
     status: Status = Status.NONCALLED
 
+
+
+
+
+
 class PreQualificationMission:
     def __init__(self):
+
+        #///////////////////////////////
+        # ///////CONFIGURATION//////////
+        # //////////////////////////////
         self.cls_names = {1: 'Gate', 2: 'Bouy'}
-        self.detected_objects = []
-        self.current_position = None
         self.instructions = deque()
+        # Define mission instructions
+        self.instructions.extend([
+            MissionInstructions(task=TaskType.MOVETOCENTER, object_cls="Gate", conditions=lambda: True),
+            MissionInstructions(task=TaskType.MOVEAROUND, object_name="Buoy", conditions=lambda: True),
+            MissionInstructions(task=TaskType.MOVETOCENTER, object_name="Gate", conditions=lambda: True)
+        ])
+
+
+
+        # //////////////////////////////
+        # ////////MUTABLE DATA//////////
+        # //////////////////////////////
         self.current_instruction: Optional[MissionInstructions] = None
+        self.mission_objects: Set[MissionObject] = set()
+        self.detected_objects: Set[str] = set()
+        self.submarine_pose : PoseStamped = None
+        self.current_detections: Detections = None
+
+
+        # ///////////////////////////////
+        # //////INIT ROS DATA ///////////
+        # ///////////////////////////////
+        def detection_callback(msg):
+            self.current_detections = msg
+        rospy.Subscriber("/detector/box_detection", Detections, detection_callback)
+        def pose_callback(msg):
+            self.submarine_pose =  msg
+        rospy.Subscriber("/zed2i/zed_node/pose", PoseStamped, pose_callback)
         self.client = actionlib.SimpleActionClient('navigate_to_waypoint', NavigateToWaypointAction)
-        self.imu_sub = rospy.Subscriber("/zed2i/zed_node/pose", PoseStamped, imu_pose_callback)
-        self.detections = rospy.Subscriber("/detector/box_detection", Detections, imu_pose_callback)
         
         rospy.loginfo("Waiting for action server to start...")
         self.client.wait_for_server()
         rospy.loginfo("Action server started.")
-        
-        # Define mission instructions
-        self.instructions.extend([
-            MissionInstructions(task=TaskType.MOVETOCENTER, object_name='Gate', conditions=lambda: True),
-            MissionInstructions(task=TaskType.MOVEAROUND, object_name='Buoy', conditions=lambda: True),
-            MissionInstructions(task=TaskType.MOVETOCENTER, object_name='Gate', conditions=lambda: True)
-        ])
 
-    def search_objects(self, data: MissionData):
-        for detection in data.detections:
-            if detection.cls == 'Gate' and not any(obj.name == 'Gate' for obj in self.detected_objects):
-                self.detected_objects.append(MissionObject('Gate', position=detection.position))
-            if detection.cls == 'Buoy' and not any(obj.name == 'Buoy' for obj in self.detected_objects):
-                self.detected_objects.append(MissionObject('Buoy', position=detection.position))
+
+        self.calculate_distance = lambda pos1, pos2: math.sqrt((pos1.x - pos2.x)**2 +(pos1.y - pos2.y)**2+ (pos1.z - pos2.x)**2 )
+
+    def search_mission_objet(self, object_name: str):
+        for item in self.mission_objects:
+            if item.object_name == object_name:
+                return item
+        return None
+
 
     def execute_task(self, task: MissionInstructions):
-        target = next((obj.position for obj in self.detected_objects if obj.name == task.object_name), None)
-        if target is None:
-            rospy.logwarn(f"Object '{task.object_name}' not found in detected objects.")
-            return False
+
+        if task.object_cls in self.detected_objects:
+            mission_object = self.search_mission_objet(task.object_cls)
+
+
 
         # Send goal to action server
-        goal = NavigateToWaypointGoal(x=target[0], y=target[1], z=target[2])
+        goal = NavigateToWaypointGoal(mission_object.position)
         self.client.send_goal(goal, feedback_cb=self.feedback_callback)
         
         # Wait for the result
@@ -90,8 +115,19 @@ class PreQualificationMission:
     def feedback_callback(self, feedback: NavigateToWaypointFeedback):
         rospy.loginfo(f"Distance to target: {feedback.distance_to_target}")
 
-
     def run(self):
+        detector_name = self.current_detections.detector_name
+        detections = self.current_detections
+        for detection in detections:
+            if self.cls_names[detection.cls] == "Gate" and self.cls_names[detection.cls] not in self.detected_objects:
+                self.detected_objects.add("Gate")
+                distance = self.calculate_distance(detection.point, self.submarine_pose.position)
+                self.mission_objects.append(MissionObject(detection.point,"Gate", distance=distance)) 
+            if self.cls_names[detection.cls] == "Buoy" and self.cls_names[detection.cls] not in self.detected_objects:
+                self.detected_objects.add("Buoy") 
+                distance = self.calculate_distance(detection.point, self.submarine_pose.position)
+                self.mission_objects.append(MissionObject(detection))            
+
         if not self.current_instruction and self.instructions:
             self.current_instruction = self.instructions.popleft()
 
