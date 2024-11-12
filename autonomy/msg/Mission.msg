@@ -1,2 +1,0 @@
-Detections Detections
-Sensor/Point current_point

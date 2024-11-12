@@ -1,5 +1,5 @@
 import rospy
-from autonomy.srv import SetColorFilterConfig
+from autonomy.srv import SetColorFilterConfig  
 
 def set_color_filter_config_client(tolerance, min_confidence, min_area, rgb_range):
     rospy.wait_for_service('set_color_filter_config')
