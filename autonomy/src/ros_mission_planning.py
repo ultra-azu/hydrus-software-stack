@@ -62,10 +62,10 @@ class PreQualificationMission:
         # ///////////////////////////////
         rospy.Subscriber("/detector/box_detection", Detections, self.detection_callback)
         rospy.Subscriber("/zed2i/zed_node/pose", PoseStamped, self.pose_callback)
-        self.client = actionlib.SimpleActionClient('navigate_to_waypoint', NavigateToWaypointAction)
+        self.controller_client = actionlib.SimpleActionClient('controller_action', NavigateToWaypointAction)
         
         rospy.loginfo("Waiting for action server to start...")
-        self.client.wait_for_server()
+        self.controller_client.wait_for_server()
         rospy.loginfo("Action server started.")
 
         self.calculate_distance = lambda pos1, pos2: math.sqrt((pos1.x - pos2.x)**2 + (pos1.y - pos2.y)**2 + (pos1.z - pos2.z)**2)
@@ -88,11 +88,11 @@ class PreQualificationMission:
 
             # Send goal to action server
             goal = NavigateToWaypointGoal(target_position=mission_object.position)
-            self.client.send_goal(goal, feedback_cb=self.feedback_callback)
+            self.controller_client.send_goal(goal, feedback_cb=self.feedback_callback)
             
             # Wait for the result
             self.client.wait_for_result()
-            result = self.client.get_result()
+            result = self.controller_client.get_result()
 
             if result.success:
                 rospy.loginfo(f"Successfully completed task: {task.task} for object: {task.object_cls}")

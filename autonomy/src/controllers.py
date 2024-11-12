@@ -4,10 +4,11 @@ import math
 import rospy
 import actionlib
 from geometry_msgs.msg import Point, PoseStamped
-from autonomy.srv import NavigateToWaypoint, NavigateToWaypointResponse, SetParameters, SetParametersResponse
-from autonomy.msg import NavigateToWaypointAction, NavigateToWaypointFeedback, NavigateToWaypointResult
-from dataclasses import dataclass
+from std_msgs.msg import Float32
+from dataclasses import dataclass, field
 from typing import List
+from autonomy.msg import NavigateToWaypointAction, NavigateToWaypointFeedback, NavigateToWaypointResult
+
 
 
 # ASCII representation of the position of the thrusters:
@@ -24,6 +25,7 @@ from typing import List
 #    
 
 class ProportionalController:
+
     @dataclass(frozen=True)
     class Constants:
         DEPTH_SPEED: int = 2
@@ -32,7 +34,7 @@ class ProportionalController:
         FRONT_TORPEDO_SPEED: int = 5
         BACK_TORPEDO_SPEED: int = 4
         DELTA: float = 0.01
-        SPEED_TRANSLATION: dict = {
+        SPEED_TRANSLATION: dict = field(default_factory=lambda: {
             1: 1550,
             2: 1600,
             3: 1650,
@@ -40,12 +42,12 @@ class ProportionalController:
             5: 1300,
             6: 1400,
             7: 1350
-        }
+        })
         TOTAL_THRUSTERS: int = 8
-        DEPTH_MOTORS_ID: list = [2, 7]
-        FRONT_MOTORS_ID: list = [1, 5]
-        BACK_MOTORS_ID: list = [4, 8]
-        TORPEDO_MOTORS_ID: list = [3, 6]
+        DEPTH_MOTORS_ID: list = field(default_factory=lambda: [2, 7])
+        FRONT_MOTORS_ID: list = field(default_factory=lambda: [1, 5])
+        BACK_MOTORS_ID: list = field(default_factory=lambda: [4, 8])
+        TORPEDO_MOTORS_ID: list = field(default_factory=lambda: [3, 6])
 
     def __init__(self):
         # ////////////////////////////////////
@@ -62,10 +64,12 @@ class ProportionalController:
         #////////// INIT ROS DATA////////////
         #////////////////////////////////////
         for i in range(self.Constants.TOTAL_THRUSTERS):
-            self.thrusters_publishers.append(rospy.Publisher('/thrusters/' + str(i+1), queue_size=10))
+            self.thrusters_publishers.append(rospy.Publisher('/thrusters/' + str(i+1), Float32, queue_size=10))
         def imu_pose_callback(msg):
             self.submarine_pose = msg
         rospy.Subscriber("/zed2i/zed_node/pose", PoseStamped, imu_pose_callback)
+        self.server = actionlib.SimpleActionServer('controller_action', NavigateToWaypointAction, self.execute_callback, False)
+        self.server.start()
 
 
     def execute_callback(self,goal):
