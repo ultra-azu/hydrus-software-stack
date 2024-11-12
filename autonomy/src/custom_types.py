@@ -27,7 +27,7 @@ class Detection:
     cls: int
     conf: float
     depth: float = 0
-    point: Optional[Point3D]
+    point: Optional[Point3D] = None
 
 @dataclass
 class Detections:

@@ -1,11 +1,10 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(autnomy)
+project(autonomy)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
 
 find_package(catkin REQUIRED COMPONENTS
-  tf2_ros
   nav_msgs
   sensor_msgs
   stereo_msgs
@@ -13,27 +12,38 @@ find_package(catkin REQUIRED COMPONENTS
   visualization_msgs
   message_runtime
   rospy
-  smach
-  smach_ros
   actionlib
   actionlib_msgs
   message_generation
   rosbag
   std_msgs
   topic_tools
-  computer_vision
 )
 
-## Generate dynamic reconfigure parameters in the 'cfg' folder
-# generate_dynamic_reconfigure_options(
-#   cfg/DynReconf1.cfg
-#   cfg/DynReconf2.cfg
-# )
+# Add message files
+add_message_files(
+  FILES
+  Detection.msg
+  Detections.msg
+)
+
+# Add service files
+add_service_files(
+  FILES
+  SetColorFilter.srv
+)
+
+# Generate added messages and services
+generate_messages(
+  DEPENDENCIES
+  std_msgs
+  geometry_msgs
+  actionlib_msgs
+  sensor_msgs
+)
 
 catkin_package(
   CATKIN_DEPENDS
-    tf2_ros
-    tf2_geometry_msgs
     nav_msgs
     sensor_msgs
     stereo_msgs
@@ -43,15 +53,12 @@ catkin_package(
     visualization_msgs
     message_runtime
     rospy
-    smach
-    smach_ros
     actionlib
     actionlib_msgs
     message_generation
     rosbag
     std_msgs
     topic_tools
-    computer_vision
 )
 
 include_directories(

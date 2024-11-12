@@ -1,2 +1,2 @@
-autonomy_msgs/Detector[] detections
+autonomy/Detection[] detections
 string detector_name
