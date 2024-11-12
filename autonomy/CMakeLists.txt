@@ -27,6 +27,12 @@ add_message_files(
   Detections.msg
 )
 
+
+add_action_files(
+  FILES
+  NavigateToWaypoint.action
+)
+
 # Add service files
 add_service_files(
   FILES
