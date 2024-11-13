@@ -1,0 +1,12 @@
+# Goal
+float64 x          # Target X position
+float64 y          # Target Y position
+float64 z          # Target Z position
+
+---
+# Feedback
+float64 distance_to_target  # Current distance to the target
+
+---
+# Result
+bool success       # True if the target was reached successfully, False otherwise

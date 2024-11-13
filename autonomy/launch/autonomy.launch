@@ -1,0 +1,5 @@
+<launch>
+    <!-- Node for computer vision publishers -->
+    <node name="cv_publishers_node" pkg="autonomy" type="cv_publishers.py"  output="screen">
+    </node>
+</launch>

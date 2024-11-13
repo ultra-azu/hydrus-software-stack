@@ -4,16 +4,16 @@ FROM ros:noetic-ros-base
 # Update package list
 RUN apt-get update && apt-get install -y lsb-release gnupg curl software-properties-common
 
-# Add the deadsnakes PPA and install Python 3.9
+# Add the deadsnakes PPA and install Python 3.8
 RUN add-apt-repository -y ppa:deadsnakes/ppa && \
     apt-get update && \
-    apt-get install -y python3.9 python3.9-distutils python3.9-venv
+    apt-get install -y python3.8 python3.8-distutils python3.8-venv
 
-# Set Python 3.9 as the default
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1
+# Set Python 3.8 as the default
+RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1
 
-# Install pip for Python 3.9
-RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.9
+# Install pip for Python 3.8
+RUN curl -sS https://bootstrap.pypa.io/get-pip.py | python3.8
 
 # Camera and Computer Vision Dependencies Python-3
 RUN apt-get update && apt-get install -y \
@@ -26,13 +26,9 @@ RUN apt-get update && apt-get install -y \
     libbullet-dev \
     python3-empy
 
-# Mission Node Dependencies
-RUN apt-get install -y \
-    ros-noetic-smach-ros \
-    ros-noetic-executive-smach \
-    ros-noetic-smach-viewer\
+
+RUN apt-get update && apt-get install -y\
     ros-noetic-tf2-geometry-msgs\
-    libeigen3-dev\
     python3-tf2-kdl
 
 # Embedded Node Dependencies

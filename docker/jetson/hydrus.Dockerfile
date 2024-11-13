@@ -24,10 +24,6 @@ RUN apt-get update && apt-get install -y \
     libbullet-dev \
     python3-empy
 
-# Mission Node Dependencies
-RUN apt-get install -y \
-    ros-melodic-smach-ros \
-    ros-melodic-tf2-geometry-msgs\
 
 # Embedded Node Dependencies
 RUN apt-get install -y --no-install-recommends \
