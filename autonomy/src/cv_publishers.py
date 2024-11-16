@@ -1,7 +1,5 @@
 
 # Python Dependencies
-
-# Python Dependencies
 import cv2
 import numpy as np
 from typing import List, Dict, Tuple
@@ -18,6 +16,16 @@ from autonomy.srv import  SetColorFilterResponse
 from cv_bridge import CvBridge, CvBridgeError
 
 
+@dataclass
+class ColorFilterConfig:
+    tolerance: float
+    min_confidence: float
+    min_area: float
+    rgb_range: Tuple[int,int,int]
+
+#//////////////////////////////////////////// 
+#//////////DETECTION FUNCTIONS///////////////
+#////////////////////////////////////////////
 
 def color_filter(image: np.ndarray, config: ColorFilterConfig = ColorFilterConfig(
                      tolerance=0.4, min_confidence=0.3, min_area=0.2, rgb_range= (255,0,0)
@@ -152,7 +160,6 @@ def transform_to_global(detections: List[custom_types.Detection],imu_point: cust
 
 #//////////////////////////////////////////// 
 #///////// ROS CODE PUBLISHERS///////////////
-#///////// ROS CODE PUBLISHERS///////////////
 # ///////////////////////////////////////////
 
 bridge = CvBridge()
@@ -263,11 +270,12 @@ def publish_vision_detections():
     detection_pub = rospy.Publisher('/detector/box_detection', Detections, queue_size=10)
     rate = rospy.Rate(10) 
     while not rospy.is_shutdown():
-        detections = run_detection_pipelines()
-        detection_msg = Detections()
-        detection_msg.detections = detections
-        detection_msg.class_names = ["Class1", "Class2", "Class3"]  
-        detection_pub.publish(detection_msg)
+        pipelines_results = run_detection_pipelines()
+        for detector_name, detections in pipelines_results:
+            detection_msg = Detections()
+            detection_msg.detections = detections
+            detection_msg.detector_name = detector_name  
+            detection_pub.publish(detection_msg)
 
         rate.sleep()
 
