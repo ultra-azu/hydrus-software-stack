@@ -53,11 +53,13 @@ class ProportionalController:
         # ////////////////////////////////////
         # ////////ROS MUTABLE OBJECTS/////////
         # ////////////////////////////////////
+
         self.thrusters_publishers = []
         self.server = None
         self.target_point = None
         self.submarine_pose = None
         self.thruster_values = [1500 for _ in range(8)]
+
         self.moving: List[bool] = [False, False, False]  # [depth, rotation, linear]
 
         #//////////////////////////////////// 
@@ -73,7 +75,6 @@ class ProportionalController:
 
 
     def execute_callback(self,goal):
-
         feedback = NavigateToWaypointFeedback()
         result = NavigateToWaypointResult()
 
@@ -105,6 +106,7 @@ class ProportionalController:
             rate.sleep()
 
 
+
     def move_submarine(self,current_pose, target_point):
         if current_pose is None or target_point is None:
             return
@@ -120,12 +122,12 @@ class ProportionalController:
                 self.moving = [False, False, True]
 
         elif self.moving[2]:  # Move forward
+
             if self.adjust_linear_motors(current_pose, target_point):
                 self.moving = [True, False, False]  # Reset to depth movement if necessary
 
         for i in range(len(self.thruster_values)):
             self.thrusters_publishers[i].publish(self.thruster_values[i])
-
 
     def adjust_depth_motors(self, current_pose, target_point):
             if current_pose.position.z < target_point.position.z:
@@ -136,6 +138,7 @@ class ProportionalController:
                     self.thruster_values[motor_id] = -self.Constants.speed_translation[self.Constants.DEPTH_SPEED]
 
     def adjust_rotation_motors(self, current_pose, target_point):
+
             target_yaw = self.calculate_yaw_to_target(current_pose.position, target_point.position)
             current_yaw = self.calculate_current_yaw(current_pose.orientation)
             angle_diff = self.normalize_angle(target_yaw - current_yaw)
@@ -205,3 +208,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
