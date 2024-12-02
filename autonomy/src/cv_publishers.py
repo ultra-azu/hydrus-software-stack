@@ -4,7 +4,8 @@ import cv2
 import numpy as np
 from typing import List, Dict, Tuple
 from ultralytics import YOLO
-from motpy import Detection, MultiObjectTracker
+from motpy import Detection as MotpyDetection
+from motpy import MultiObjectTracker
 # import types
 from dataclasses import dataclass
 import custom_types
@@ -85,9 +86,9 @@ def yolo_object_detection(image: np.ndarray) -> List[custom_types.Detection]:
         if hasattr(result, 'boxes'):  # Ensure the result has boxes
             for box in result.boxes:
                 x1, y1, x2, y2 = box.xyxy.cpu().numpy()[0]
-                conf = box.conf
-                cls = box.cls
-                transition_list.append(Detection(x1, y1, x2, y2, str(cls), conf))
+                conf = float(box.conf.cpu().numpy()[0])
+                cls = int(box.cls.cpu().numpy()[0])
+                transition_list.append(MotpyDetection(box = [x1,y1,x2,y2], score = conf))
     tracked_objects = tracker.step(transition_list)
     for obj in tracked_objects:
         x1, y1, x2, y2 = map(float, obj.box)
@@ -142,10 +143,8 @@ def calculate_point_3d(detections: List[custom_types.Detection], depth_image: np
                 else:
                     # Assign a default point if depth is not available
                     detection.point = custom_types.Point3D(x=0, y=0, z=0)
-                    detection.depth = z
             else:
                 detection.point = custom_types.Point3D(x=0, y=0, z=0)
-                detection.depth = z
 
 
 def transform_to_global(detections: List[custom_types.Detection],imu_point: custom_types.Point3D, imu_rotation:custom_types.Point3D):
