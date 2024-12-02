@@ -87,14 +87,13 @@ def yolo_object_detection(image: np.ndarray) -> List[custom_types.Detection]:
             for box in result.boxes:
                 x1, y1, x2, y2 = box.xyxy.cpu().numpy()[0]
                 conf = float(box.conf.cpu().numpy()[0])
-                cls = int(box.cls.cpu().numpy()[0])
+                cls_w = int(box.cls.cpu().numpy()[0])
                 transition_list.append(MotpyDetection(box = [x1,y1,x2,y2], score = conf))
     tracked_objects = tracker.step(transition_list)
     for obj in tracked_objects:
         x1, y1, x2, y2 = map(float, obj.box)
-        unique_class = obj.id
         obj_conf = obj.score
-        result_list.append(custom_types.Detection(x1, y1, x2, y2, unique_class, obj_conf, 0, None))
+        result_list.append(custom_types.Detection(x1, y1, x2, y2, cls_w, obj_conf, 0, None))
 
     return result_list
 
