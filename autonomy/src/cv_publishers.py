@@ -4,6 +4,7 @@ import cv2
 import numpy as np
 from typing import List, Dict, Tuple
 from ultralytics import YOLO
+from motpy import Detection, MultiObjectTracker
 # import types
 from dataclasses import dataclass
 import custom_types
@@ -15,6 +16,11 @@ from autonomy.msg import Detection, Detections
 from autonomy.srv import  SetColorFilterResponse 
 from cv_bridge import CvBridge, CvBridgeError
 
+model = YOLO("yolo11n.pt") 
+tracker = MultiObjectTracker(
+    dt = 0.1,
+    tracker_kwargs={'max_staleness': 20}
+) 
 
 
 @dataclass
@@ -72,7 +78,7 @@ def color_filter(image: np.ndarray, config: ColorFilterConfig = ColorFilterConfi
 
 def yolo_object_detection(image: np.ndarray) -> List[custom_types.Detection]:
     result_list = []
-    model = YOLO("yolo11n.pt")  
+    transition_list = []
     results = model(image)  # This returns a list of results
 
     for result in results:
@@ -81,7 +87,13 @@ def yolo_object_detection(image: np.ndarray) -> List[custom_types.Detection]:
                 x1, y1, x2, y2 = box.xyxy.cpu().numpy()[0]
                 conf = box.conf
                 cls = box.cls
-                result_list.append(custom_types.Detection(x1, y1, x2, y2, str(cls), conf))
+                transition_list.append(Detection(x1, y1, x2, y2, str(cls), conf))
+    tracked_objects = tracker.step(transition_list)
+    for obj in tracked_objects:
+        x1, y1, x2, y2 = map(float, obj.box)
+        unique_id = obj.id
+        obj_conf = obj.score
+        result_list.append(custom_types.Detection(x1, y1, x2, y2, unique_id, obj_conf, 0, None))
 
     return result_list
 
@@ -130,8 +142,10 @@ def calculate_point_3d(detections: List[custom_types.Detection], depth_image: np
                 else:
                     # Assign a default point if depth is not available
                     detection.point = custom_types.Point3D(x=0, y=0, z=0)
+                    detection.depth = z
             else:
                 detection.point = custom_types.Point3D(x=0, y=0, z=0)
+                detection.depth = z
 
 
 def transform_to_global(detections: List[custom_types.Detection],imu_point: custom_types.Point3D, imu_rotation:custom_types.Point3D):
