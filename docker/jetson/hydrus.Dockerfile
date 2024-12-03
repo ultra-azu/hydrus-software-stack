@@ -61,7 +61,6 @@ COPY ./requirements.txt /requirements.txt
 RUN apt-get install -y python3
 RUN python3 -m pip install -r /requirements.txt
 
-RUN python3 -m pip install motpy
 
 # Install Default models for YOLO
 RUN curl -Lo /yolov8n.pt https://github.com/ultralytics/assets/releases/latest/download/yolov8n.pt
