@@ -4,6 +4,8 @@ import cv2
 import numpy as np
 from typing import List, Dict, Tuple
 from ultralytics import YOLO
+from motpy import Detection as MotpyDetection
+from motpy import MultiObjectTracker
 # import types
 from dataclasses import dataclass
 import custom_types
@@ -15,6 +17,11 @@ from autonomy.msg import Detection, Detections
 from autonomy.srv import  SetColorFilterResponse 
 from cv_bridge import CvBridge, CvBridgeError
 
+model = YOLO("yolo11n.pt") 
+tracker = MultiObjectTracker(
+    dt = 0.1,
+    tracker_kwargs={'max_staleness': 20}
+) 
 
 
 @dataclass
@@ -72,16 +79,21 @@ def color_filter(image: np.ndarray, config: ColorFilterConfig = ColorFilterConfi
 
 def yolo_object_detection(image: np.ndarray) -> List[custom_types.Detection]:
     result_list = []
-    model = YOLO("yolo11n.pt")  
+    transition_list = []
     results = model(image)  # This returns a list of results
 
     for result in results:
         if hasattr(result, 'boxes'):  # Ensure the result has boxes
             for box in result.boxes:
                 x1, y1, x2, y2 = box.xyxy.cpu().numpy()[0]
-                conf = box.conf
-                cls = box.cls
-                result_list.append(custom_types.Detection(x1, y1, x2, y2, str(cls), conf))
+                conf = float(box.conf.cpu().numpy()[0])
+                cls_w = int(box.cls.cpu().numpy()[0])
+                transition_list.append(MotpyDetection(box = [x1,y1,x2,y2], score = conf))
+    tracked_objects = tracker.step(transition_list)
+    for obj in tracked_objects:
+        x1, y1, x2, y2 = map(float, obj.box)
+        obj_conf = obj.score
+        result_list.append(custom_types.Detection(x1, y1, x2, y2, cls_w, obj_conf, 0, None))
 
     return result_list
 
@@ -119,6 +131,7 @@ def calculate_point_3d(detections: List[custom_types.Detection], depth_image: np
                     fx, fy, cx, cy = camera_intrinsic
 
                     z = mean_depth
+                    detection.depth = z
                     x_center = (x_min + x_max) / 2
                     y_center = (y_min + y_max) / 2
                     x = (x_center - cx) * z / fx
@@ -130,8 +143,10 @@ def calculate_point_3d(detections: List[custom_types.Detection], depth_image: np
                 else:
                     # Assign a default point if depth is not available
                     detection.point = custom_types.Point3D(x=0, y=0, z=0)
+                    detection.depth = 0
             else:
                 detection.point = custom_types.Point3D(x=0, y=0, z=0)
+                detection.depth = 0
 
 
 def transform_to_global(detections: List[custom_types.Detection],imu_point: custom_types.Point3D, imu_rotation:custom_types.Point3D):
