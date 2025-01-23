@@ -27,7 +27,7 @@ services:
   hydrus_cuda:
     build:
       context: ../
-      dockerfile: docker/amd64/hydrus.Dockerfile
+      dockerfile: docker/amd64/cuda/hydrus.Dockerfile
     privileged: true
     deploy:
       resources:

@@ -23,4 +23,4 @@ RUN . /opt/ros/noetic/setup.sh && \
 COPY ./camera-entrypoint.sh /camera-entrypoint.sh
 RUN chmod +x /camera-entrypoint.sh
 
-CMD ["/catkin_ws/camera-entrypoint.sh"]
+CMD ["/camera-entrypoint.sh"]
