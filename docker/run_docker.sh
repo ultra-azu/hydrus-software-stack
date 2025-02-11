@@ -1,4 +1,5 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -e
 
 # Function to check if the system is Jetson TX2
 is_jetson_tx2() {
@@ -18,14 +19,14 @@ is_wsl() {
   fi
 }
 
-DEPLOY=false  
-VOLUME=false  
-FORCE_CPU=false 
+DEPLOY=false
+VOLUME=false
+FORCE_CPU=false
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
-        --deploy) DEPLOY=true ;; 
-        --volume) VOLUME=true ;; 
+        --deploy) DEPLOY=true ;;
+        --volume) VOLUME=true ;;
         --force-cpu) FORCE_CPU=true ;;
         *) echo "Unknown parameter passed: $1"; exit 1 ;;
     esac
