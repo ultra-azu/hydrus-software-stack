@@ -63,7 +63,7 @@ COPY ./embedded_arduino /root/Arduino/libraries/embedded_arduino
 # Copy the Python Dependencies and Install them
 COPY ./requirements.txt /requirements.txt
 
-# Ultralytics with NO GPU
+# Ultralytics with  GPU
 RUN python3 -m pip install ultralytics
 RUN python3 -m pip install -r /requirements.txt
 
