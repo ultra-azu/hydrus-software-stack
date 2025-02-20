@@ -29,7 +29,11 @@ RUN apt-get update && apt-get install -y \
 
 RUN apt-get update && apt-get install -y\
     ros-noetic-tf2-geometry-msgs\
-    python3-tf2-kdl
+    python3-tf2-kdl\
+    gazebo11\ 
+    ros-noetic-gazebo-ros-control\
+    ros-noetic-gazebo-ros-pkgs
+    
 
 # Embedded Node Dependencies
 RUN apt-get install -y --no-install-recommends \
@@ -59,6 +63,10 @@ RUN apt-get install -y ros-noetic-rosserial-arduino
 # Copy embedded Arduino code in the Arduino libraries folder
 COPY ./embedded_arduino /root/Arduino/libraries/embedded_arduino
 
+# Copy dvl embedded driver
+COPY ./DVL/Wayfinder /opt/Wayfinder
+WORKDIR /opt/Wayfinder
+RUN apt update -y && apt upgrade -y  && apt install python3-serial -y
 
 # Copy the Python Dependencies and Install them
 COPY ./requirements.txt /requirements.txt
