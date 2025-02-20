@@ -22,7 +22,7 @@ services:
     environment:
       - ROS_MASTER_URI=http://ros-master:11311
       - DISPLAY=${DISPLAY} 
-      - ZEDOPTION=${ZEDOPTION}
+      - ZED_OPTION=${ZED_OPTION}
     depends_on:
       - ros-master
     volumes:
@@ -53,6 +53,7 @@ services:
     environment:
       - ROS_MASTER_URI=http://ros-master:11311
       - ARDUINO_BOARD=arduino:avr:mega
+      - ZED_OPTION=${ZED_OPTION}
     depends_on:
       - ros-master
       - zed-camera

@@ -21,7 +21,7 @@ is_wsl() {
 DEPLOY=false  
 VOLUME=false  
 FORCE_CPU=false 
-ZED_OPTION="noviz"
+ZED_OPTION=false
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
@@ -54,7 +54,7 @@ else
         echo "Do you want to display the ZED2i camera in RViz?"
         read -p "(y/n)" choice
         case $choice in 
-          [Yy]* ) ZED_OPTION = "rviz" ; break;;
+          [Yy]* ) ZED_OPTION=true; break;;
           [Nn]* ) break;;
           * ) echo "Invalid input. Please try again.";;
         esac
