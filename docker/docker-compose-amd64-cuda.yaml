@@ -9,7 +9,7 @@ services:
 
   zed-camera:
     build:
-      context: ../
+      context: ../../hydrus-software-stack
       dockerfile: docker/amd64/cuda/camera.Dockerfile
     privileged: true
     deploy:
@@ -21,13 +21,18 @@ services:
               capabilities: [gpu]
     environment:
       - ROS_MASTER_URI=http://ros-master:11311
+      - DISPLAY=${DISPLAY} 
+      - ZED_OPTION=${ZED_OPTION}
     depends_on:
       - ros-master
+    volumes:
+      - "../:/home/catkin_ws/src"
+      - /tmp/.X11-unix:/tmp/.X11-unix 
 
   hydrus_cuda:
     build:
-      context: ../
-      dockerfile: docker/amd64/hydrus.Dockerfile
+      context: ../../hydrus-software-stack
+      dockerfile: docker/amd64/cuda/hydrus.Dockerfile
     privileged: true
     deploy:
       resources:
@@ -39,7 +44,8 @@ services:
     stdin_open: true
     tty: true
     volumes:
-      - ".:/catkin_ws/src"
+      - "../:/home/catkin_ws/src"
+      - /tmp/.X11-unix:/tmp/.X11-unix 
     ports:
       - "8000:8000"
     devices:
@@ -47,6 +53,7 @@ services:
     environment:
       - ROS_MASTER_URI=http://ros-master:11311
       - ARDUINO_BOARD=arduino:avr:mega
+      - ZED_OPTION=${ZED_OPTION}
     depends_on:
       - ros-master
       - zed-camera
