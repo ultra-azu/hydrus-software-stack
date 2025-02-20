@@ -22,6 +22,7 @@ services:
     environment:
       - ROS_MASTER_URI=http://ros-master:11311
       - DISPLAY=${DISPLAY} 
+      - ZEDOPTION=${ZEDOPTION}
     depends_on:
       - ros-master
     volumes:
