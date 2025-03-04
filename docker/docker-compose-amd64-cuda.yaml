@@ -6,6 +6,10 @@ services:
     command: stdbuf -o L roscore
     ports:
       - "11311:11311"
+    ulimits:
+      nofile:
+        soft: 1024
+        hard: 524288
 
   zed-camera:
     build:
@@ -25,6 +29,10 @@ services:
       - ZED_OPTION=${ZED_OPTION}
     depends_on:
       - ros-master
+    ulimits:
+      nofile:
+        soft: 1024
+        hard: 524288
     volumes:
       - "../:/home/catkin_ws/src"
       - /tmp/.X11-unix:/tmp/.X11-unix 
@@ -53,7 +61,15 @@ services:
     environment:
       - ROS_MASTER_URI=http://ros-master:11311
       - ARDUINO_BOARD=arduino:avr:mega
+      - DISPLAY=${DISPLAY}
+      - DEPLOY
+      - VOLUME
+      - NVIDIA_DRIVER_CAPABILITIES=all
       - ZED_OPTION=${ZED_OPTION}
     depends_on:
       - ros-master
       - zed-camera
+    ulimits:
+      nofile:
+        soft: 1024
+        hard: 524288

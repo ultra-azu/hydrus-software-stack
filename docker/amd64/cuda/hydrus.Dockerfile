@@ -71,6 +71,11 @@ RUN python3 -m pip install -r /requirements.txt
 RUN curl -Lo /yolov8n.pt https://github.com/ultralytics/assets/releases/latest/download/yolov8n.pt
 RUN curl -Lo /yolov8s-world.pt https://github.com/ultralytics/assets/releases/latest/download/yolov8s-world.pt
 
+RUN apt-get install -y libeigen3-dev python3-tf2-kdl
+RUN apt-get update && apt-get install -y ros-noetic-tf2-geometry-msgs
+
+RUN echo "export MESA_GL_VERSION_OVERRIDE=3.3" >> /root/.bashrc
+
 COPY ./ /catkin_ws/src/hydrus-software-stack
 WORKDIR /catkin_ws/src/hydrus-software-stack
 RUN chmod +x ros-entrypoint.sh
